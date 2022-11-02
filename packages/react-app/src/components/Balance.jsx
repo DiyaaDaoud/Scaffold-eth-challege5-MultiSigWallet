@@ -1,29 +1,28 @@
 import React, { useState } from "react";
+import { formatEther } from "@ethersproject/units";
+import { usePoller } from "eth-hooks";
 import { useBalance } from "eth-hooks";
-
-const { utils } = require("ethers");
 
 /*
   ~ What it does? ~
-
   Displays a balance of given address in ether & dollar
-
   ~ How can I use? ~
-
   <Balance
     address={address}
     provider={mainnetProvider}
     price={price}
   />
-
   ~ If you already have the balance as a bignumber ~
   <Balance
     balance={balance}
     price={price}
   />
-
+  
+  <Balance
+    balance={hardCodedBalance}
+    dollarMultiplier={props.price}
+  />
   ~ Features ~
-
   - Provide address={address} and get balance corresponding to given address
   - Provide provider={mainnetProvider} to access balance on mainnet or any other network (ex. localProvider)
   - Provide price={price} of ether and get your balance converted to dollars
@@ -32,7 +31,7 @@ const { utils } = require("ethers");
 export default function Balance(props) {
   const [dollarMode, setDollarMode] = useState(true);
 
-  // const [listening, setListening] = useState(false);
+  const [listening, setListening] = useState(false);
 
   const balance = useBalance(props.provider, props.address);
 
@@ -48,16 +47,16 @@ export default function Balance(props) {
   }
 
   if (usingBalance) {
-    const etherBalance = utils.formatEther(usingBalance);
+    const etherBalance = formatEther(usingBalance);
     parseFloat(etherBalance).toFixed(2);
     floatBalance = parseFloat(etherBalance);
   }
 
   let displayBalance = floatBalance.toFixed(4);
 
-  const price = props.price || props.dollarMultiplier || 1;
+  const price = props.price || props.dollarMultiplier;
 
-  if (dollarMode) {
+  if (price && dollarMode) {
     displayBalance = "$" + (floatBalance * price).toFixed(2);
   }
 
@@ -65,7 +64,7 @@ export default function Balance(props) {
     <span
       style={{
         verticalAlign: "middle",
-        fontSize: props.size ? props.size : 24,
+        fontSize: props.fontSize ? props.fontSize : 20,
         padding: 8,
         cursor: "pointer",
       }}

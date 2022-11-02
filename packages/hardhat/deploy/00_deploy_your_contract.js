@@ -1,7 +1,7 @@
 // deploy/00_deploy_your_contract.js
 
 const { ethers } = require("hardhat");
-
+const { verify } = require("../utils/verify");
 const localChainId = "31337";
 
 module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
@@ -9,15 +9,27 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
   const { deployer } = await getNamedAccounts();
   const chainId = await getChainId();
 
-  await deploy("YourContract", {
+  await deploy("MyMultiSigWallet", {
     // Learn more about args here: https://www.npmjs.com/package/hardhat-deploy#deploymentsdeploy
     from: deployer,
-    // args: [ "Hello", ethers.utils.parseEther("1.5") ],
+    args: [
+      chainId,
+      [
+        "0x012ed3d36047eE3576DA7C8c90CEAC099526EFa6",
+        "0x0334424AB21F2e4D72AA7e6A0BA12cC7cFab1295",
+        "0xf5fff32cf83a1a614e15f25ce55b0c0a6b5f8f2c",
+      ],
+      2,
+    ],
     log: true,
+    waitConfirmations: 5,
   });
 
   // Getting a previously deployed contract
-  const YourContract = await ethers.getContract("YourContract", deployer);
+  const myMultiSigWallet = await ethers.getContract(
+    "MyMultiSigWallet",
+    deployer
+  );
   /*  await YourContract.setPurpose("Hello");
   
     To take ownership of yourContract using the ownable library uncomment next line and add the 
@@ -53,12 +65,25 @@ module.exports = async ({ getNamedAccounts, deployments, getChainId }) => {
 
   // Verify your contracts with Etherscan
   // You don't want to verify on localhost
-  if (chainId !== localChainId) {
-    await run("verify:verify", {
-      address: YourContract.address,
-      contract: "contracts/YourContract.sol:YourContract",
-      contractArguments: [],
-    });
+  try {
+    if (chainId !== localChainId) {
+      await verify(myMultiSigWallet.address, [
+        chainId,
+        [
+          "0x012ed3d36047eE3576DA7C8c90CEAC099526EFa6",
+          "0x0334424AB21F2e4D72AA7e6A0BA12cC7cFab1295",
+          "0xf5fff32cf83a1a614e15f25ce55b0c0a6b5f8f2c",
+        ],
+        2,
+      ]);
+      console.log("VERIFIIIEEEEDD!!");
+    }
+  } catch (error) {
+    if (error.message.toLowerCase().includes("already verified")) {
+      console.log("Already verified!");
+    } else {
+      console.log(error);
+    }
   }
 };
-module.exports.tags = ["YourContract"];
+module.exports.tags = ["MyMultiSigWallet"];

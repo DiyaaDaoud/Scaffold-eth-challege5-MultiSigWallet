@@ -5,12 +5,14 @@ import "antd/dist/antd.css";
 import Authereum from "authereum";
 import {
   useBalance,
-  useContractLoader,
-  useContractReader,
   useGasPrice,
   useOnBlock,
   useUserProviderAndSigner,
+  useUserAddress,
+  useContractReader,
+  useContractLoader,
 } from "eth-hooks";
+import { useEventListener } from "./hooks";
 import { useExchangeEthPrice } from "eth-hooks/dapps/dex";
 import Fortmatic from "fortmatic";
 import React, { useCallback, useEffect, useState } from "react";
@@ -26,7 +28,8 @@ import externalContracts from "./contracts/external_contracts";
 import deployedContracts from "./contracts/hardhat_contracts.json";
 import { Transactor } from "./helpers";
 // import Hints from "./Hints";
-import { ExampleUI, Hints, Subgraph } from "./views";
+import { ExampleUI, Hints, Subgraph, FrontPage, Owners, Create, Transactions } from "./views";
+import Gun from "gun";
 
 const { ethers } = require("ethers");
 /*
@@ -49,7 +52,9 @@ const { ethers } = require("ethers");
 */
 
 /// 📡 What chain are your contracts deployed to?
-const targetNetwork = NETWORKS.localhost; // <------- select your target frontend network (localhost, rinkeby, xdai, mainnet)
+const targetNetwork = NETWORKS.goerli; // <------- select your target frontend network (localhost, rinkeby, xdai, mainnet)
+
+// const poolServerUrl = "http://localhost:49832/";
 
 // 😬 Sorry for all the console logging
 const DEBUG = true;
@@ -70,6 +75,7 @@ const poktMainnetProvider = navigator.onLine
       "https://eth-mainnet.gateway.pokt.network/v1/lb/61853c567335c80036054a2b",
     )
   : null;
+
 const mainnetInfura = navigator.onLine
   ? new ethers.providers.StaticJsonRpcProvider(`https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_KEY}`)
   : null;
@@ -79,7 +85,9 @@ const localProviderUrl = targetNetwork.rpcUrl;
 // as you deploy to other networks you can set REACT_APP_PROVIDER=https://dai.poa.network in packages/react-app/.env
 const localProviderUrlFromEnv = process.env.REACT_APP_PROVIDER ? process.env.REACT_APP_PROVIDER : localProviderUrl;
 if (DEBUG) console.log("🏠 Connecting to provider:", localProviderUrlFromEnv);
+console.log("🏠 Connecting to provider:", localProviderUrlFromEnv);
 const localProvider = new ethers.providers.StaticJsonRpcProvider(localProviderUrlFromEnv);
+console.log("************************localProvider is:", localProvider);
 
 // 🔭 block explorer URL
 const blockExplorer = targetNetwork.blockExplorer;
@@ -169,8 +177,8 @@ function App(props) {
       ? scaffoldEthProvider
       : mainnetInfura;
 
-  const [injectedProvider, setInjectedProvider] = useState();
-  const [address, setAddress] = useState();
+  // const [injectedProvider, setInjectedProvider] = useState();
+  // const [address, setAddress] = useState();
 
   const logoutOfWeb3Modal = async () => {
     await web3Modal.clearCachedProvider();
@@ -182,14 +190,18 @@ function App(props) {
     }, 1);
   };
 
+  const [injectedProvider, setInjectedProvider] = useState();
+
   /* 💵 This hook will get the price of ETH from 🦄 Uniswap: */
   const price = useExchangeEthPrice(targetNetwork, mainnetProvider);
+  const [address, setAddress] = useState();
 
   /* 🔥 This hook will get the price of Gas from ⛽️ EtherGasStation */
   const gasPrice = useGasPrice(targetNetwork, "fast");
   // Use your injected provider from 🦊 Metamask or if you don't have it then instantly generate a 🔥 burner wallet.
   const userProviderAndSigner = useUserProviderAndSigner(injectedProvider, localProvider);
   const userSigner = userProviderAndSigner.signer;
+  const userProvider = userProviderAndSigner.provider;
 
   useEffect(() => {
     async function getAddress() {
@@ -226,6 +238,7 @@ function App(props) {
 
   // Load in your local 📝 contract and read a value from it:
   const readContracts = useContractLoader(localProvider, contractConfig);
+  // console.log("readContracts", readContracts);
 
   // If you want to make 🔐 write transactions to your contracts, use the userSigner:
   const writeContracts = useContractLoader(userSigner, contractConfig, localChainId);
@@ -234,6 +247,25 @@ function App(props) {
   //
   // If you want to bring in the mainnet DAI contract it would look like:
   const mainnetContracts = useContractLoader(mainnetProvider, contractConfig);
+
+  const contractName = "MyMultiSigWallet";
+  // console.log("our contract ::::::", readContracts[contractName]);
+  // const ourContract = readContracts[contractName];
+  // const ourContractAddress = ourContract.address;
+
+  const executeTransactionEvents = useEventListener(
+    readContracts,
+    contractName,
+    "TransactionExecuted",
+    localProvider,
+    1,
+  );
+
+  const isOwner = useContractReader(readContracts, contractName, "isOwner", [address]);
+
+  const nonce = useContractReader(readContracts, contractName, "nonce");
+
+  const ownerEvents = useEventListener(readContracts, contractName, "Owner", localProvider, 1);
 
   // If you want to call a function on a new block
   useOnBlock(mainnetProvider, () => {
@@ -245,8 +277,15 @@ function App(props) {
     "0x34aA3F359A9D614239015126635CE7732c18fDF3",
   ]);
 
+  // const gun = Gun({
+  //   peers: ["http:localhost:8000/gun"],
+  // });
+  const gun = Gun({
+    peers: ["https://shocking-mummy-27018.herokuapp.com/"],
+  });
+
   // keep track of a variable from the contract in the local React state:
-  const purpose = useContractReader(readContracts, "YourContract", "purpose");
+  // const purpose = useContractReader(readContracts, "YourContract", "purpose");
 
   /*
   const addressFromENS = useResolveName(mainnetProvider, "austingriffith.eth");
@@ -270,6 +309,7 @@ function App(props) {
     ) {
       console.log("_____________________________________ 🏗 scaffold-eth _____________________________________");
       console.log("🌎 mainnetProvider", mainnetProvider);
+      console.log("🌎 localProvider", localProvider);
       console.log("🏠 localChainId", localChainId);
       console.log("👩‍💼 selected address:", address);
       console.log("🕵🏻‍♂️ selectedChainId:", selectedChainId);
@@ -376,6 +416,9 @@ function App(props) {
     );
   }
 
+  const signaturesRequired = useContractReader(readContracts, contractName, "signaturesRequired");
+  //console.log("signatures requred: ", signaturesRequired);
+
   const loadWeb3Modal = useCallback(async () => {
     const provider = await web3Modal.connect();
     setInjectedProvider(new ethers.providers.Web3Provider(provider));
@@ -452,121 +495,102 @@ function App(props) {
               }}
               to="/"
             >
-              YourContract
+              MultiSig
             </Link>
           </Menu.Item>
-          <Menu.Item key="/hints">
+          <Menu.Item key="/owners">
             <Link
               onClick={() => {
-                setRoute("/hints");
+                setRoute("/owners");
               }}
-              to="/hints"
+              to="/owners"
             >
-              Hints
+              Owners
             </Link>
           </Menu.Item>
-          <Menu.Item key="/exampleui">
+          <Menu.Item key="/create">
             <Link
               onClick={() => {
-                setRoute("/exampleui");
+                setRoute("/create");
               }}
-              to="/exampleui"
+              to="/create"
             >
-              ExampleUI
+              Create
             </Link>
           </Menu.Item>
-          <Menu.Item key="/mainnetdai">
+          <Menu.Item key="/pool">
             <Link
               onClick={() => {
-                setRoute("/mainnetdai");
+                setRoute("/pool");
               }}
-              to="/mainnetdai"
+              to="/pool"
             >
-              Mainnet DAI
-            </Link>
-          </Menu.Item>
-          <Menu.Item key="/subgraph">
-            <Link
-              onClick={() => {
-                setRoute("/subgraph");
-              }}
-              to="/subgraph"
-            >
-              Subgraph
+              Pool
             </Link>
           </Menu.Item>
         </Menu>
 
         <Switch>
           <Route exact path="/">
-            {/*
-                🎛 this scaffolding is full of commonly used components
-                this <Contract/> component will automatically parse your ABI
-                and give you a form to interact with it locally
-            */}
-
-            <Contract
-              name="YourContract"
+            <FrontPage
+              executeTransactionEvents={executeTransactionEvents}
+              readContracts={readContracts}
+              contractName={contractName}
+              localProvider={localProvider}
               price={price}
-              signer={userSigner}
-              provider={localProvider}
-              address={address}
-              blockExplorer={blockExplorer}
-              contractConfig={contractConfig}
-            />
-          </Route>
-          <Route path="/hints">
-            <Hints
-              address={address}
-              yourLocalBalance={yourLocalBalance}
               mainnetProvider={mainnetProvider}
-              price={price}
-            />
+              blockExplorer={blockExplorer}
+            ></FrontPage>
           </Route>
-          <Route path="/exampleui">
-            <ExampleUI
-              address={address}
-              userSigner={userSigner}
+          <Route path="/owners">
+            <Owners
+              signaturesRequired={signaturesRequired}
+              ownerEvents={ownerEvents}
+              mainnetProvider={mainnetProvider}
+              blockExplorer={blockExplorer}
+              readContracts={readContracts}
+              contractName={contractName}
+            ></Owners>
+          </Route>
+          <Route path="/create">
+            <Create
+              readContracts={readContracts}
+              contractName={contractName}
               mainnetProvider={mainnetProvider}
               localProvider={localProvider}
-              yourLocalBalance={yourLocalBalance}
               price={price}
+              userProvider={userProvider}
+              userSigner={userSigner}
+              address={address}
+              gun={gun}
+            ></Create>
+          </Route>
+          <Route path="/pool">
+            <Transactions
+              readContracts={readContracts}
+              contractName={contractName}
+              nonce={nonce}
+              localProvider={localProvider}
+              userProvider={userProvider}
+              userSigner={userSigner}
+              gun={gun}
+              address={address}
+              signaturesRequired={signaturesRequired}
+              mainnetProvider={mainnetProvider}
+              price={price}
+              blockExplorer={blockExplorer}
               tx={tx}
               writeContracts={writeContracts}
-              readContracts={readContracts}
-              purpose={purpose}
-            />
+            ></Transactions>
           </Route>
-          <Route path="/mainnetdai">
-            <Contract
-              name="DAI"
-              customContract={mainnetContracts && mainnetContracts.contracts && mainnetContracts.contracts.DAI}
-              signer={userSigner}
-              provider={mainnetProvider}
-              address={address}
-              blockExplorer="https://etherscan.io/"
-              contractConfig={contractConfig}
-              chainId={1}
-            />
-            {/*
-            <Contract
-              name="UNI"
-              customContract={mainnetContracts && mainnetContracts.contracts && mainnetContracts.contracts.UNI}
-              signer={userSigner}
-              provider={mainnetProvider}
-              address={address}
-              blockExplorer="https://etherscan.io/"
-            />
-            */}
-          </Route>
-          <Route path="/subgraph">
+          {/* <Route path="/subgraph">
             <Subgraph
               subgraphUri={props.subgraphUri}
               tx={tx}
               writeContracts={writeContracts}
               mainnetProvider={mainnetProvider}
             />
-          </Route>
+          </Route> */}
         </Switch>
       </BrowserRouter>
 

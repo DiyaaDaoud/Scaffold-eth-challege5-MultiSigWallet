@@ -38,6 +38,7 @@ export default function Address(props) {
   const address = props.value || props.address;
 
   const ens = useLookupAddress(props.ensProvider, address);
+  // console.log("***************************address block: ens= ", ens);
 
   const { currentTheme } = useThemeSwitcher();
 
@@ -72,7 +73,7 @@ export default function Address(props) {
           href={etherscanLink}
           rel="noopener noreferrer"
         >
-          <Blockies seed={address.toLowerCase()} size={8} scale={2} />
+          <Blockies seed={address.toLowerCase()} size={6} scale={2} />
         </a>
       </span>
     );
